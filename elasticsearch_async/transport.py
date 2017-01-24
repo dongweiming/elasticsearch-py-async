@@ -134,6 +134,7 @@ class AsyncTransport(Transport):
     def main_loop(self, method, url, params, body, ignore=(), timeout=None):
         for attempt in range(self.max_retries + 1):
             connection = self.get_connection()
+            connection.loop = self.loop
 
             try:
                 status, headers, data = yield from connection.perform_request(

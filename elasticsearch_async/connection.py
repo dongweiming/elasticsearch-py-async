@@ -24,20 +24,27 @@ class AIOHttpConnection(Connection):
             if isinstance(http_auth, (tuple, list)):
                 http_auth = aiohttp.BasicAuth(*http_auth)
 
-        self.session = aiohttp.ClientSession(
-            auth=http_auth,
-            connector=aiohttp.TCPConnector(
-                loop=self.loop,
-                verify_ssl=verify_certs,
-                conn_timeout=self.timeout,
-
-            )
-        )
-
         self.base_url = 'http%s://%s:%d%s' % (
             's' if use_ssl else '',
             host, port, self.url_prefix
         )
+        self.http_auth = http_auth
+        self.verify_certs = verify_certs
+        self._session = None
+
+    @property
+    def session(self):
+        if self._session is None:
+            session = aiohttp.ClientSession(
+                auth=self.http_auth,
+                connector=aiohttp.TCPConnector(
+                    loop=self.loop,
+                    verify_ssl=self.verify_certs,
+                    conn_timeout=self.timeout,
+                )
+            )
+            self._session = session
+        return self._session
 
     def close(self):
         return ensure_future(self.session.close())
