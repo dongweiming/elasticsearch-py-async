@@ -1,7 +1,8 @@
 import asyncio
 
 import aiohttp
-from aiohttp.errors import FingerprintMismatch, ClientError
+import async_timeout
+from aiohttp.client import ServerFingerprintMismatch, ClientError
 
 from elasticsearch.exceptions import ConnectionError, ConnectionTimeout, SSLError
 from elasticsearch.connection import Connection
@@ -39,8 +40,7 @@ class AIOHttpConnection(Connection):
                 auth=self.http_auth,
                 connector=aiohttp.TCPConnector(
                     loop=self.loop,
-                    verify_ssl=self.verify_certs,
-                    conn_timeout=self.timeout,
+                    verify_ssl=self.verify_certs
                 )
             )
             self._session = session
@@ -59,14 +59,15 @@ class AIOHttpConnection(Connection):
         start = self.loop.time()
         response = None
         try:
-            with aiohttp.Timeout(timeout or self.timeout):
-                response = yield from self.session.request(method, url, data=body)
+            with async_timeout.timeout(timeout or self.timeout, loop=self.loop):
+                response = yield from self.session.request(
+                    method, url, data=body, headers={'Content-Type': 'application/json'})
                 raw_data = yield from response.text()
             duration = self.loop.time() - start
 
         except Exception as e:
             self.log_request_fail(method, url, url_path, body, self.loop.time() - start, exception=e)
-            if isinstance(e, FingerprintMismatch):
+            if isinstance(e, ServerFingerprintMismatch):
                 raise SSLError('N/A', str(e), e)
             if isinstance(e, asyncio.TimeoutError):
                 raise ConnectionTimeout('TIMEOUT', str(e), e)
